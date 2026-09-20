@@ -260,6 +260,25 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(self.engine.release(job['id'])['phase'], 'released')
         self.assertEqual((self.source / 'hello.txt').read_text(), 'hello')
 
+    def test_diagnostic_identifies_our_open_directory(self):
+        k = win.kernel()
+        k.CreateFileW.argtypes = [w.LPCWSTR, w.DWORD, w.DWORD, c.c_void_p, w.DWORD, w.DWORD, w.HANDLE]
+        k.CreateFileW.restype = w.HANDLE
+        k.CloseHandle.argtypes = [w.HANDLE]
+        handle = k.CreateFileW(str(self.source), 0x80000000, 3, None, 3, 0x02000000, None)
+        self.assertNotEqual(handle, c.c_void_p(-1).value)
+        try:
+            result = win.diagnose(self.source)
+            self.assertFalse(result.get('incomplete'), result)
+            self.assertTrue(any(h['pid'] == os.getpid() for h in result['handles']), result)
+        finally:
+            k.CloseHandle(handle)
+
+    def test_diagnostic_timeout_is_explicitly_incomplete(self):
+        import subprocess
+        with patch('codex_relocate.windows.subprocess.run', side_effect=subprocess.TimeoutExpired('probe', 20)):
+            self.assertTrue(win.diagnose(self.source)['incomplete'])
+
 
 if __name__ == '__main__':
     unittest.main()
