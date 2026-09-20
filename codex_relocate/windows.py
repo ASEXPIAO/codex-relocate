@@ -20,6 +20,27 @@ def kernel():
     return c.WinDLL('kernel32', use_last_error=True)
 
 
+def long_path(path):
+    """Expand 8.3 names without resolving junctions; retain nonexistent suffixes."""
+    p = Path(os.path.abspath(str(path)))
+    tail = []
+    k = kernel()
+    k.GetLongPathNameW.argtypes = [w.LPCWSTR, w.LPWSTR, w.DWORD]
+    buffer = c.create_unicode_buffer(32768)
+    while True:
+        count = k.GetLongPathNameW(extended(p), buffer, len(buffer))
+        if 0 < count < len(buffer):
+            value = buffer.value
+            if value.startswith('\\\\?\\'):
+                value = value[4:]
+            return Path(value).joinpath(*reversed(tail))
+        error = c.get_last_error()
+        if error not in (2, 3) or p == p.parent:
+            raise c.WinError(error)
+        tail.append(p.name)
+        p = p.parent
+
+
 def volume(path):
     k = kernel()
     root = Path(path).anchor
@@ -194,7 +215,7 @@ def directory_handles(root):
     names = processes()
     result = []
     pathbuf = c.create_unicode_buffer(32768)
-    prefix = os.path.normcase(extended(root)).rstrip('\\')
+    prefix = os.path.normcase(extended(Path(root).resolve())).rstrip('\\')
     try:
         for e in entries:
             if e.pid == os.getpid():

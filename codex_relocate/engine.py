@@ -22,7 +22,8 @@ class MigrationError(RuntimeError):
 
 
 def full(path):
-    return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(str(path)))))
+    value = os.path.abspath(os.path.expandvars(os.path.expanduser(str(path))))
+    return win.long_path(value)
 
 
 def inside(path, parent):

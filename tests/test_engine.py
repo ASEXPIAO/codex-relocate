@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from codex_relocate import windows as win
-from codex_relocate.engine import Engine, MigrationError, content, snapshot, exists, is_link
+from codex_relocate.engine import Engine, MigrationError, content, snapshot, exists, is_link, full
 
 
 @unittest.skipUnless(os.name == 'nt', 'Windows filesystem integration tests')
@@ -278,6 +278,16 @@ class MigrationTests(unittest.TestCase):
         import subprocess
         with patch('codex_relocate.windows.subprocess.run', side_effect=subprocess.TimeoutExpired('probe', 20)):
             self.assertTrue(win.diagnose(self.source)['incomplete'])
+
+    def test_short_path_alias_does_not_bypass_overlap_check(self):
+        k = win.kernel()
+        k.GetShortPathNameW.argtypes = [w.LPCWSTR, w.LPWSTR, w.DWORD]
+        buf = c.create_unicode_buffer(32768)
+        self.assertTrue(k.GetShortPathNameW(str(self.source), buf, len(buf)))
+        short = Path(buf.value)
+        self.assertEqual(full(short), full(self.source))
+        with self.assertRaises(MigrationError):
+            self.engine.migrate(self.source, short / 'nested-target')
 
 
 if __name__ == '__main__':
