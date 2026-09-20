@@ -285,7 +285,7 @@ class Engine:
         self._assert_directory(d, job['destination_identity'])
         if job['phase'] == 'copying':
             self._assert_directory(s, job['source_identity'])
-            win.copy_directory_acl(s, d)
+            win.copy_acl(s, d)
             if snapshot(s, progress=self.progress) != job['manifest']:
                 raise MigrationError('Source changed. Keep this job as evidence and start with a new destination.')
             self._recover_partial(job, d)
@@ -304,7 +304,7 @@ class Engine:
                     raise MigrationError('Incomplete/conflicting destination entry retained: ' + rel)
                 if item['kind'] == 'dir':
                     os.mkdir(win.extended(dst))
-                    win.copy_directory_acl(src, dst)
+                    win.copy_acl(src, dst)
                 elif item['kind'] == 'link':
                     if item['tag'] == JUNCTION:
                         target = item['target']
@@ -319,6 +319,9 @@ class Engine:
                         pass
                     job['partial_identity'] = identity(partial)
                     self.save(job)
+                    # The temporary sibling must not inherit broad target-parent
+                    # access while it holds private application state.
+                    win.copy_acl(src, partial)
                     win.copy_file(src, partial, overwrite=True)
                     if digest(partial) != item['sha256']:
                         raise MigrationError('Copied file hash mismatch; original retained: ' + rel)

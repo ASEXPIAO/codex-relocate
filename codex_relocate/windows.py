@@ -97,7 +97,7 @@ def copy_file(source, destination, overwrite=False):
         raise c.WinError(c.get_last_error())
 
 
-def copy_directory_acl(source, destination):
+def copy_acl(source, destination):
     """Keep source access rules instead of inheriting a broader target ACL."""
     a = c.WinDLL('advapi32', use_last_error=True)
     a.GetFileSecurityW.argtypes = [w.LPCWSTR, w.DWORD, c.c_void_p, w.DWORD, c.POINTER(w.DWORD)]
