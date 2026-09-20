@@ -1,0 +1,46 @@
+name: Windows tests and portable build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pyinstaller==6.16.0
+      - run: python -m PyInstaller --noconfirm --clean --onedir --name CodexRelocate run.py
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item README.md,LICENSE -Destination dist/CodexRelocate
+          Compress-Archive -Path dist/CodexRelocate/* -DestinationPath dist/Codex-Relocate-Windows-x64.zip
+          $digest = (Get-FileHash dist/Codex-Relocate-Windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$digest  Codex-Relocate-Windows-x64.zip" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Codex-Relocate-Windows-x64
+          path: |
+            dist/Codex-Relocate-Windows-x64.zip
+            dist/SHA256SUMS.txt
